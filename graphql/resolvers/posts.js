@@ -1,4 +1,4 @@
-const { AuthenticationError } = require('apollo-server');
+const { AuthenticationError, UserInputError } = require('apollo-server');
 const Post = require('../../models/Post');
 const checkAuth = require('../../util/check-auth');
 
@@ -28,9 +28,12 @@ module.exports = {
     Mutation: {
         async createPost(_parent, { body }, context) {
             const user = checkAuth(context); //get loggedin user details from the authorization header
+            if (body.trim() === '') {
+                throw new UserInputError('Post body must not be empty');
+            }
             const newPost = new Post({
                 body,
-                username: user.username,
+                username: user.username,    
                 user: user.id,
                 createdAt: new Date().toISOString()
             });
@@ -38,18 +41,40 @@ module.exports = {
             return createdPost;
         },
         async deletePost(_parent, { postId }, context) {
-            const user = checkAuth(context); //only loggedin user can delete their own post
+            const user = checkAuth(context); //validate token
             try {
                 const post = await Post.findById(postId);
                 if (!post) {
-                    return new Error('Post not found');
+                    return new UserInputError('Post not found');
                 }
-                if (user.username === post.username) {
+                if (user.username === post.username) { //only loggedin user can delete their own post
                     await post.delete();
                     return 'Post deleted successfully';
                 } else {
                     throw new AuthenticationError('Action not allowed');
                 }
+            } catch (err) {
+                throw new Error(err);
+            }
+        },
+        likePost : async(_parent, { postId }, context) => {
+            const { username } = checkAuth(context);
+            try {
+                const post = await Post.findById(postId);
+                if (!post) {
+                    return new UserInputError('Post not found');
+                }
+                //if post already liked, unlike it
+                if (post.likes.find(like => like.username === username)) {
+                    post.likes = post.likes.filter(like => like.username !== username);             
+                } else {
+                    post.likes.push({ 
+                        username, 
+                        createdAt: new Date().toISOString()
+                    });
+                }
+                await post.save();
+                return post;
             } catch (err) {
                 throw new Error(err);
             }
