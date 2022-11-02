@@ -7,7 +7,9 @@ module.exports = gql`
         createdAt : String!,
         username : String!,
         comments : [Comment]!,
-        likes : [Like]!
+        commentCount : Int!,
+        likes : [Like]!,
+        likeCount : Int!
     },
     input RegisterInput {
         username : String!,
